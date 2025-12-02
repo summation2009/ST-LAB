@@ -1,4 +1,4 @@
-# 3D_ST-LAB_V2.0
+# 7-Segment_4_digit
 
-![3D_ST-LAB_V2.0](https://github.com/summation2009/ST-LAB/blob/main/ST_LEB_V2.0/3D_ST-LAB_V2.0.png?raw=true "Screen shot")
+![How to connect GPIO pins 7-Segment_4_digit](https://github.com/summation2009/ST-LAB/blob/main/ST_LAB_V2.0/example/7-Segment_4_digit/7-Segment_4_digit.jpg?raw=true "Screen shot")
 

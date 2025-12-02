@@ -1,4 +1,5 @@
-# 3D_ST-LAB_V2.0
+# Infrared_sensor
 
-![3D_ST-LAB_V2.0](https://github.com/summation2009/ST-LAB/blob/main/ST_LEB_V2.0/3D_ST-LAB_V2.0.png?raw=true "Screen shot")
+![How to connect GPIO pins Infrared_sensor](https://github.com/summation2009/ST-LAB/blob/main/ST_LAB_V2.0/example/Infrared_sensor/Infrared_sensor.jpg?raw=true "Screen shot")
+
 

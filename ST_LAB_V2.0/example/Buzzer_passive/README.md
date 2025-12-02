@@ -1,4 +1,4 @@
-# 3D_ST-LAB_V2.0
+# Buzzer_passive
 
-![3D_ST-LAB_V2.0](https://github.com/summation2009/ST-LAB/blob/main/ST_LEB_V2.0/3D_ST-LAB_V2.0.png?raw=true "Screen shot")
+![How to connect GPIO pins Buzzer_passive](https://github.com/summation2009/ST-LAB/blob/main/ST_LAB_V2.0/example/Buzzer_passive/Buzzer_passive.jpg?raw=true "Screen shot")
 
