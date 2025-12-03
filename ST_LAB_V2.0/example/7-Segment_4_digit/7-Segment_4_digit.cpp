@@ -40,6 +40,8 @@ void showTime(int hour, int minute) {
   lc.setDigit(0, 1, h2, false);
   lc.setDigit(0, 2, m1, false);
   lc.setDigit(0, 3, m2, false);
+  // lc.setChar(0, 4, 'o',  false); // ex 25'7
+  lc.setChar(0, 4, 2,  false); //ex 15:14
 }
 
 
