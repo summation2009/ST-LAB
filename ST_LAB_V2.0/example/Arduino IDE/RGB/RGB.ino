@@ -31,24 +31,24 @@ void setup()
 
 void loop()
 {
-    setRGBColor(255, 0, 0);   // สีแดง
+    setRGBColor(0, 255, 255);   // สีแดง
     delay(500);
 
-    setRGBColor(0, 255, 0);   // สีเขียว
+    setRGBColor(255, 0, 255);   // สีเขียว
     delay(500);
 
-    setRGBColor(0, 0, 255);   // สีน้ำเงิน
+    setRGBColor(255, 255, 0);   // สีน้ำเงิน
     delay(500);
 
-    setRGBColor(255, 255, 0); // สีเหลือง
+    setRGBColor(0, 0, 255); // สีเหลือง
     delay(500);
 
-    setRGBColor(0, 255, 255); // สีฟ้าอ่อน
+    setRGBColor(255, 0, 0); // สีฟ้าอ่อน
     delay(500);
 
-    setRGBColor(255, 0, 255); // สีม่วง
+    setRGBColor(0, 255, 0); // สีม่วง
     delay(500);
 
-    setRGBColor(255, 255, 255); // สีขาว
+    setRGBColor(0, 0, 0); // สีขาว
     delay(500);
 }
