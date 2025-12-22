@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <Adafruit_GFX.h>       // Library หลักสำหรับวาดกราฟิก
 #include <Adafruit_SSD1306.h>   // Library สำหรับจอ OLED SSD1306
 

@@ -1,5 +1,3 @@
-#include <Arduino.h>
-
 // -------------------------------------------------------------
 // GPIO Pins for 7-segment digit : หลักสิบ (tens digit)
 // 4-bit BCD สำหรับแสดงตัวเลข 0–9
