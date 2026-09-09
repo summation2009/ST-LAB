@@ -1,47 +1,39 @@
-#include <Arduino.h>
+/* ST-LAB (ESP32) - Example Code
+LAB13 : RGB LED Control
+*/
+const int RED_Pin = 32; // กำหนด GPIO32 สำหรับ LED สีแดง
+const int GREEN_Pin = 12; // กำหนด GPIO12 สำหรับ LED สีเขียว
+const int BLUE_Pin = 27; // กำหนด GPIO27 สำหรับ LED สีน้ำเงิน
+const int CH_R = 0; // ช่อง PWM สำหรับสีแดง
+const int CH_G = 1; // ช่อง PWM สำหรับสีเขียว
+const int CH_B = 2; // ช่อง PWM สำหรับสีน้ำเงิน
+const int PWM_FREQ = 5000; // ความถี่ PWM 5kHz
+const int PWM_RES = 8; // ความละเอียด PWM 8 บิต (0–255)
 
-// -------------------------------------------------------------
-// กำหนดขาสำหรับสวิตช์ 4 ปุ่ม
-// -------------------------------------------------------------
-#define SW1 16
-#define SW2 17
-#define SW3 18
-#define SW4 19
+void setColor(uint8_t r, uint8_t g, uint8_t b) {
+ledcWrite(CH_R, r); // กำหนดความสว่างสีแดง
+ledcWrite(CH_G, g); // กำหนดความสว่างสีเขียว
+ledcWrite(CH_B, b); // กำหนดความสว่างสีน้ำเงิน
+}
 
 void setup() {
-    Serial.begin(115200); // เปิด Serial Monitor
-
-    // ตั้งสวิตช์เป็น INPUT_PULLUP
-    // หมายความว่าเมื่อไม่ได้กดจะอ่าน HIGH, กดแล้วอ่าน LOW
-    pinMode(SW1, INPUT_PULLUP);
-    pinMode(SW2, INPUT_PULLUP);
-    pinMode(SW3, INPUT_PULLUP);
-    pinMode(SW4, INPUT_PULLUP);
+ledcSetup(CH_R, PWM_FREQ, PWM_RES); // ตั้งค่า PWM ช่องสีแดง
+ledcSetup(CH_G, PWM_FREQ, PWM_RES); // ตั้งค่า PWM ช่องสีเขียว
+ledcSetup(CH_B, PWM_FREQ, PWM_RES); // ตั้งค่า PWM ช่องสีน้ำเงิน
+ledcAttachPin(RED_Pin, CH_R); // ผูก PWM สีแดงกับ GPIO32
+ledcAttachPin(GREEN_Pin, CH_G); // ผูก PWM สีเขียวกับ GPIO12
+ledcAttachPin(BLUE_Pin, CH_B); // ผูก PWM สีน้ำเงินกับ GPIO27
 }
 
 void loop() {
-    // อ่านค่าจากสวิตช์
-    int s1 = digitalRead(SW1);
-    int s2 = digitalRead(SW2);
-    int s3 = digitalRead(SW3);
-    int s4 = digitalRead(SW4);
-
-    // ตรวจสอบสวิตช์แต่ละตัว
-    if (s1 == LOW) {
-        Serial.println("SW1 PRESSED"); // กดแล้วแสดงข้อความ
-    }
-
-    if (s2 == LOW) {
-        Serial.println("SW2 PRESSED");
-    }
-
-    if (s3 == LOW) {
-        Serial.println("SW3 PRESSED");
-    }
-
-    if (s4 == LOW) {
-        Serial.println("SW4 PRESSED");
-    }
-
-    delay(100); // หน่วงเวลา 100 ms เพื่อป้องกันการอ่านซ้ำ/สัญญาณกระพริบ
+setColor(255, 0, 0); // แสดงสีแดง
+delay(500); // หน่วงเวลา
+setColor(0, 255, 0); // แสดงสีเขียว
+delay(500); // หน่วงเวลา
+setColor(0, 0, 255); // แสดงสีน้ำเงิน
+delay(500); // หน่วงเวลา
+setColor(180, 0, 180); // แสดงสีม่วง (ผสม)
+delay(500); // หน่วงเวลา
+setColor(0, 0, 0); // ปิดไฟ LED
+delay(500); // หน่วงเวลา
 }
