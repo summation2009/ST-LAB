@@ -2,6 +2,7 @@
  LAB04 : Potentiometer/ADC
 */
 #include <Arduino.h> // รวมไลบรารีหลักของ Arduino สำหรับใช้งานฟังก์ชันพื้นฐาน
+
 #define POT_PIN 35 // กำหนดขา GPIO35 สำหรับอ่านค่า ADC จาก Potentiometer
 #define LED_PIN 2 // กำหนดขา GPIO2 สำหรับควบคุม LED
 

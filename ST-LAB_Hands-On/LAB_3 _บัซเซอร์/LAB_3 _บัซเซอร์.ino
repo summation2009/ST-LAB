@@ -2,6 +2,7 @@
  LAB03 : Buzzer/PWM
 */
 #define BUZZER_PIN 5 // กำหนดขา GPIO 5 สำหรับต่อ Buzzer
+
 // ESP32 ใช้โมดูล LEDC สำหรับสร้างสัญญาณ PWM (ใช้สร้างเสียงได้)
 const int PWM_CH = 0; // เลือกช่อง PWM หมายเลข 0
 const int PWM_RES = 8; // ความละเอียด PWM 8 บิต (ค่าดิวตี้ไซเคิล 0–255)

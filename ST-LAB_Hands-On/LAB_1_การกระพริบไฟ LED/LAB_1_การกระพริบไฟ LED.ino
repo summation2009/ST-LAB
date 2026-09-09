@@ -1,47 +1,15 @@
-#include <Arduino.h>
+/* ST-LAB (ESP32) - Example Code
+ LAB01 : Blink LED
+*/
+#define LED_PIN 2 // Built-in LED (ESP32) หรือ ESP32 บางรุ่นอยู่ที่ IO 1
 
-// -------------------------------------------------------------
-// กำหนดขาสำหรับสวิตช์ 4 ปุ่ม
-// -------------------------------------------------------------
-#define SW1 16
-#define SW2 17
-#define SW3 18
-#define SW4 19
+void setup() { // ฟังก์ชันเริ่มต้น ทำงานครั้งเดียวเมื่อบอร์ดเริ่มทำงาน
+pinMode(LED_PIN, OUTPUT); // กำหนดโหมดการทำงานของขา GPIO
+} // ขอบเขตบล็อกคำสั่ง
 
-void setup() {
-    Serial.begin(115200); // เปิด Serial Monitor
-
-    // ตั้งสวิตช์เป็น INPUT_PULLUP
-    // หมายความว่าเมื่อไม่ได้กดจะอ่าน HIGH, กดแล้วอ่าน LOW
-    pinMode(SW1, INPUT_PULLUP);
-    pinMode(SW2, INPUT_PULLUP);
-    pinMode(SW3, INPUT_PULLUP);
-    pinMode(SW4, INPUT_PULLUP);
-}
-
-void loop() {
-    // อ่านค่าจากสวิตช์
-    int s1 = digitalRead(SW1);
-    int s2 = digitalRead(SW2);
-    int s3 = digitalRead(SW3);
-    int s4 = digitalRead(SW4);
-
-    // ตรวจสอบสวิตช์แต่ละตัว
-    if (s1 == LOW) {
-        Serial.println("SW1 PRESSED"); // กดแล้วแสดงข้อความ
-    }
-
-    if (s2 == LOW) {
-        Serial.println("SW2 PRESSED");
-    }
-
-    if (s3 == LOW) {
-        Serial.println("SW3 PRESSED");
-    }
-
-    if (s4 == LOW) {
-        Serial.println("SW4 PRESSED");
-    }
-
-    delay(100); // หน่วงเวลา 100 ms เพื่อป้องกันการอ่านซ้ำ/สัญญาณกระพริบ
-}
+void loop() { // ฟังก์ชันหลัก ทำงานวนซ้ำตลอดเวลา
+digitalWrite(LED_PIN, HIGH); // สั่งให้ขา GPIO ออกค่า HIGH/LOW
+delay(500); // หน่วงเวลา (มิลลิวินาที)
+digitalWrite(LED_PIN, LOW); // สั่งให้ขา GPIO ออกค่า HIGH/LOW
+delay( 500 ); // หน่วงเวลา (มิลลิวินาที)
+} // ขอบเขตบล็อกคำสั่ง
