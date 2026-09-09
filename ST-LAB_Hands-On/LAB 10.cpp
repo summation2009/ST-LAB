@@ -1,109 +1,124 @@
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include "LedControl.h"
+/* ST-LAB (ESP32) - Example Code
+ LAB10 : MAX7219 4DIG
+*/
+#include <LedControl.h> // ไลบรารีควบคุม MAX7219 (7-segment/LED matrix)
+#include <DHT.h> // ไลบรารีสำหรับเซนเซอร์ DHT11/DHT22
 
-// --- MAX7219 ---
-#define DIN_PIN 23      // ขา Data In
-#define CLK_PIN 18      // ขา Clock
-#define LOAD_PIN 5      // ขา Load/CS
-LedControl lc = LedControl(DIN_PIN, CLK_PIN, LOAD_PIN, 1);  // กำหนด MAX7219 จำนวน 1 โมดูล
+#define MAX_DIN 23 // ขา Data In (DIN) ของ MAX7219
+#define MAX_LOAD 5 // ขา LOAD/CS ของ MAX7219
+#define MAX_CLK 18 // ขา Clock (CLK) ของ MAX7219
+#define DHT_PIN 32 // ขา GPIO ที่ต่อกับ DHT11
+#define DHT_TYPE DHT11 // กำหนดชนิดเซนเซอร์เป็น DHT11
+DHT dht(DHT_PIN, DHT_TYPE); // สร้างอ็อบเจกต์สำหรับควบคุม DHT11
+LedControl lc = LedControl(MAX_DIN, MAX_CLK, MAX_LOAD, 1);
 
-// --- WiFi config ---
-const char* ssid = "xxxxxx";       // ชื่อ WiFi ที่จะเชื่อมต่อ
-const char* password = "xxxxxx";     // รหัสผ่าน WiFi
+// สร้างอ็อบเจกต์ควบคุม MAX7219 (ใช้งาน 1 โมดูล)
+static const byte SEG_A = 0x01; // บิตควบคุม segment จุดที่ 1
+static const byte SEG_B = 0x02; // บิตควบคุม segment จุดที่ 2
+static const byte SEG_C = 0x04; // บิตควบคุม segment จุดที่ 3
 
-// --- NTP ---
-WiFiUDP ntpUDP;    // ใช้ UDP สำหรับดึงเวลา NTP
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 7*3600, 60000);  
-// pool.ntp.org = server เวลา
-// 7*3600 = GMT+7
-// 60000 = อัปเดตทุก 60 วินาที
+// กำหนดโหมดการทำงานของจอแสดงผล
+enum Mode
+{
+MODE_NUMBER = 0, // โหมดแสดงตัวเลขนับเพิ่ม
+MODE_CLOCK = 1, // โหมดแสดงเวลา (HHMM)
+MODE_TEMP = 2 // โหมดแสดงอุณหภูมิ
+};
 
-// --- เวลา fallback ---
-unsigned long lastUpdate = 0; // เวลาที่ NTP ถูกอัปเดตล่าสุด (ms)
-int lastHour = 16;            // ค่าเริ่มต้นชั่วโมง (ใช้ถ้า NTP ไม่มา)
-int lastMinute = 55;          // ค่าเริ่มต้นนาที (ใช้ถ้า NTP ไม่มา)
-
-
-// ฟังก์ชันแสดงเวลา HHMM บน MAX7219
-void showTime(int hour, int minute) {
-
-  // แยกแต่ละหลัก เช่น 16:55 → [1][6][5][5]
-  int h1 = hour / 10;      // หลักสิบชั่วโมง
-  int h2 = hour % 10;      // หลักหน่วยชั่วโมง
-  int m1 = minute / 10;    // หลักสิบนาที
-  int m2 = minute % 10;    // หลักหน่วยนาที
-
-  // แสดงตัวเลขลง MAX7219 (decimal=false = ไม่เปิดจุด)
-  lc.setDigit(0, 0, h1, false);
-  lc.setDigit(0, 1, h2, false);
-  lc.setDigit(0, 2, m1, false);
-  lc.setDigit(0, 3, m2, false);
-  // lc.setChar(0, 4, 'o',  false); // ex 25'7
-  lc.setChar(0, 4, 2,  false); //ex 15:14
+void setup()
+{
+Serial.begin(115200); // เปิดใช้งาน Serial Monitor
+dht.begin(); // เริ่มต้นการทำงานของ DHT11
+lc.shutdown(0, false); // ปลุก MAX7219 ให้ออกจากโหมดประหยัดพลังงาน
+lc.setIntensity(0, 8); // ตั้งค่าความสว่างระดับ 0–15
+lc.clearDisplay(0); // ล้างหน้าจอแสดงผล
+Serial.println("LAB10: MAX7219 Started");
+}
+// แสดงตัวเลข 4 หลัก (0000–9999)
+void show4DigitNumber(int value)
+{
+value = constrain(value, 0, 9999); // จำกัดค่าไม่ให้เกินช่วงที่แสดงได้
+int d0 = (value / 1000) % 10; // หลักพัน
+int d1 = (value / 100) % 10; // หลักร้อย
+int d2 = (value / 10) % 10; // หลักสิบ
+int d3 = value % 10; // หลักหน่วย
+lc.setDigit(0, 0, d0, false); // แสดงหลักพัน
+lc.setDigit(0, 1, d1, false); // แสดงหลักร้อย
+lc.setDigit(0, 2, d2, false); // แสดงหลักสิบ
+lc.setDigit(0, 3, d3, false); // แสดงหลักหน่วย
+}
+// ควบคุมการแสดง ":" ระหว่างเวลา
+void setColon(bool on)
+{
+byte seg = on ? (SEG_A | SEG_B) : 0x00;
+// ถ้า on = true → เปิด segment A และ B
+lc.setRow(0, 4, seg);
+// ส่งข้อมูลไปยังตำแหน่ง row 4 (ตำแหน่งจุดพิเศษ)
 }
 
-
-void setup() {
-  Serial.begin(115200);
-
-  // --- ตั้งค่า MAX7219 ---
-  lc.shutdown(0, false);   // เปิดการทำงาน
-  lc.setIntensity(0, 8);   // ความสว่าง 0–15
-  lc.clearDisplay(0);      // ล้างหน้าจอ
-
-  // --- เชื่อมต่อ WiFi ---
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected");
-
-  // --- เริ่มระบบ NTP ---
-  timeClient.begin();
-
-  // ดึงเวลาครั้งแรก หากสำเร็จ
-  if (timeClient.update()) {
-    lastHour = timeClient.getHours();       // เก็บชั่วโมง
-    lastMinute = timeClient.getMinutes();   // เก็บนาที
-    lastUpdate = millis();                  // บันทึกเวลาปัจจุบัน (ms)
-    Serial.println("Time obtained from NTP");
-  } else {
-    Serial.println("Failed to obtain time, fallback to default");
-  }
+// ควบคุมการแสดงจุด ° สำหรับอุณหภูมิ
+void setDegreeDot(bool on)
+{
+byte seg = on ? SEG_C : 0x00;
+// ถ้า on = true → เปิด segment C
+lc.setRow(0, 4, seg);
+// ส่งข้อมูลไปยังตำแหน่ง row 4
+}
+void loop()
+{
+static unsigned long lastSwitch = 0; // เก็บเวลาเปลี่ยนโหมดล่าสุด
+// เปลี่ยนโหมดทุก 10 วินาที
+if (millis() - lastSwitch > 10000)
+{
+lastSwitch = millis(); // บันทึกเวลาใหม่
+mode = (Mode)((mode + 1) % 3); // วนโหมด 0→1→2→0
+lc.clearDisplay(0); // ล้างหน้าจอเมื่อเปลี่ยนโหมด
+}
+// ================= MODE 1: นับเลข =================
+if (mode == MODE_NUMBER)
+{
+static int n = 0; // ตัวเลขนับเพิ่ม
+show4DigitNumber(n); // แสดงค่า
+setColon(false); // ปิด colon
+n = (n + 1) % 10000; // เพิ่มค่าและวนกลับที่ 10000
+delay(50);
 }
 
+// ================= MODE 2: นาฬิกา =================
+else if (mode == MODE_CLOCK)
+{
+static int hh = 12, mm = 0; // เวลาเริ่มต้น 12:00
+static unsigned long lastTick = 0; // เก็บเวลาอัปเดตล่าสุด
+if (millis() - lastTick >= 1000)
+{ // ทุก 1 วินาที
+lastTick += 1000;
+mm++; // เพิ่มนาที
+if (mm >= 60)
+{
+mm = 0;
+hh = (hh + 1) % 24; // ชั่วโมงวน 0–23
+}
+}
+int value = (hh * 100) + mm; // รวมเป็นรูปแบบ HHMM
+show4DigitNumber(value);
+setColon((millis() / 500) % 2); // กระพริบ colon ทุก 0.5 วิ
+delay(20);
+}
 
-void loop() {
-
-  // --- อัปเดตเวลาจาก NTP ทุก 60 วินาที ---
-  if (millis() - lastUpdate >= 60000) {
-    if (timeClient.update()) {
-      lastHour = timeClient.getHours();      // ได้เวลาชั่วโมงจริง
-      lastMinute = timeClient.getMinutes();  // ได้นาทีจริง
-      Serial.println("NTP time updated");
-    }
-    lastUpdate = millis();   // รีเซ็ตการจับเวลา
-  }
-
-
-  // --- Fallback: ถ้า NTP ไม่มาเพิ่มเวลาเองทุก 1 นาที ---
-  static unsigned long lastTick = 0;
-  if (millis() - lastTick >= 60000) {
-    lastMinute++;            // เพิ่มนาที
-    if (lastMinute >= 60) {  // เช็คครบ 60 นาที
-      lastMinute = 0;
-      lastHour++;            // เพิ่มชั่วโมง
-      if (lastHour >= 24) lastHour = 0;  // ชั่วโมงวน
-    }
-    lastTick = millis();     // รีเซ็ตตัวจับเวลา
-  }
-
-  // --- แสดงเวลาแบบนิ่ง ๆ HHMM ---
-  showTime(lastHour, lastMinute);
-
-  delay(1000);  // อัปเดตหน้าจอทุก 1 วินาที (ไม่กระพริบ)
+// ================= MODE 3: อุณหภูมิ =================
+else if (mode == MODE_TEMP)
+{
+float t = dht.readTemperature(); // อ่านค่าอุณหภูมิ (°C)
+if (isnan(t))
+{ // ถ้าอ่านค่าไม่ได้
+show4DigitNumber(0);
+setDegreeDot(false);
+delay(500);
+return;
+}
+int ti = (int)(t * 10.0f); // คูณ 10 เพื่อแสดงทศนิยม 1 ตำแหน่ง
+show4DigitNumber(ti);
+setDegreeDot(true); // เปิดจุดแสดง °C
+delay(500);
+}
 }

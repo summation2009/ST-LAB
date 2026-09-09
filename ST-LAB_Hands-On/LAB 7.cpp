@@ -1,109 +1,31 @@
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include "LedControl.h"
+/* ST-LAB (ESP32) - Example Code
+ LAB07 : I2C LCD 0x27
+*/
+#include <Wire.h> // ไลบรารีสำหรับสื่อสารแบบ I2C
+#include <LiquidCrystal_I2C.h> // ไลบรารีควบคุมจอ LCD แบบ I2C
 
-// --- MAX7219 ---
-#define DIN_PIN 23      // ขา Data In
-#define CLK_PIN 18      // ขา Clock
-#define LOAD_PIN 5      // ขา Load/CS
-LedControl lc = LedControl(DIN_PIN, CLK_PIN, LOAD_PIN, 1);  // กำหนด MAX7219 จำนวน 1 โมดูล
+#define I2C_SDA 21 // กำหนดขา GPIO21 เป็น SDA (ข้อมูล I2C)
+#define I2C_SCL 22 // กำหนดขา GPIO22 เป็น SCL (สัญญาณ Clock I2C)
+#define LCD_ADDR 0x27 // กำหนดที่อยู่ I2C ของจอ LCD (ปกติคือ 0x27 หรือ 0x3F)
+LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2); // สร้างออบเจ็กต์ lcd สำหรับจอขนาด 16 คอลัมน์ 2 แถว
 
-// --- WiFi config ---
-const char* ssid = "xxxxxx";       // ชื่อ WiFi ที่จะเชื่อมต่อ
-const char* password = "xxxxxx";     // รหัสผ่าน WiFi
+void setup()
+{ // ทำงานครั้งเดียวเมื่อเปิดเครื่องหรือรีเซตบอร์ด
+Wire.begin(I2C_SDA, I2C_SCL); // เริ่มต้นบัส I2C โดยกำหนดขา SDA และ SCL
+lcd.init(); // เริ่มต้นการทำงานของจอ LCD
+lcd.backlight(); // เปิดไฟ Backlight ของจอ LCD
+lcd.setCursor(0, 0); // ตั้งตำแหน่งเคอร์เซอร์ที่คอลัมน์ 0 แถว 0
+lcd.print("ST-LAB v2.0"); // แสดงข้อความบรรทัดแรก
+lcd.setCursor(0, 1); // ตั้งตำแหน่งเคอร์เซอร์ที่คอลัมน์ 0 แถว 1
+lcd.print("I2C LCD 0x27"); // แสดงข้อความบรรทัดที่สอง
+} // จบฟังก์ชัน setup()
 
-// --- NTP ---
-WiFiUDP ntpUDP;    // ใช้ UDP สำหรับดึงเวลา NTP
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 7*3600, 60000);  
-// pool.ntp.org = server เวลา
-// 7*3600 = GMT+7
-// 60000 = อัปเดตทุก 60 วินาที
-
-// --- เวลา fallback ---
-unsigned long lastUpdate = 0; // เวลาที่ NTP ถูกอัปเดตล่าสุด (ms)
-int lastHour = 16;            // ค่าเริ่มต้นชั่วโมง (ใช้ถ้า NTP ไม่มา)
-int lastMinute = 55;          // ค่าเริ่มต้นนาที (ใช้ถ้า NTP ไม่มา)
-
-
-// ฟังก์ชันแสดงเวลา HHMM บน MAX7219
-void showTime(int hour, int minute) {
-
-  // แยกแต่ละหลัก เช่น 16:55 → [1][6][5][5]
-  int h1 = hour / 10;      // หลักสิบชั่วโมง
-  int h2 = hour % 10;      // หลักหน่วยชั่วโมง
-  int m1 = minute / 10;    // หลักสิบนาที
-  int m2 = minute % 10;    // หลักหน่วยนาที
-
-  // แสดงตัวเลขลง MAX7219 (decimal=false = ไม่เปิดจุด)
-  lc.setDigit(0, 0, h1, false);
-  lc.setDigit(0, 1, h2, false);
-  lc.setDigit(0, 2, m1, false);
-  lc.setDigit(0, 3, m2, false);
-  // lc.setChar(0, 4, 'o',  false); // ex 25'7
-  lc.setChar(0, 4, 2,  false); //ex 15:14
-}
-
-
-void setup() {
-  Serial.begin(115200);
-
-  // --- ตั้งค่า MAX7219 ---
-  lc.shutdown(0, false);   // เปิดการทำงาน
-  lc.setIntensity(0, 8);   // ความสว่าง 0–15
-  lc.clearDisplay(0);      // ล้างหน้าจอ
-
-  // --- เชื่อมต่อ WiFi ---
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected");
-
-  // --- เริ่มระบบ NTP ---
-  timeClient.begin();
-
-  // ดึงเวลาครั้งแรก หากสำเร็จ
-  if (timeClient.update()) {
-    lastHour = timeClient.getHours();       // เก็บชั่วโมง
-    lastMinute = timeClient.getMinutes();   // เก็บนาที
-    lastUpdate = millis();                  // บันทึกเวลาปัจจุบัน (ms)
-    Serial.println("Time obtained from NTP");
-  } else {
-    Serial.println("Failed to obtain time, fallback to default");
-  }
-}
-
-
-void loop() {
-
-  // --- อัปเดตเวลาจาก NTP ทุก 60 วินาที ---
-  if (millis() - lastUpdate >= 60000) {
-    if (timeClient.update()) {
-      lastHour = timeClient.getHours();      // ได้เวลาชั่วโมงจริง
-      lastMinute = timeClient.getMinutes();  // ได้นาทีจริง
-      Serial.println("NTP time updated");
-    }
-    lastUpdate = millis();   // รีเซ็ตการจับเวลา
-  }
-
-
-  // --- Fallback: ถ้า NTP ไม่มาเพิ่มเวลาเองทุก 1 นาที ---
-  static unsigned long lastTick = 0;
-  if (millis() - lastTick >= 60000) {
-    lastMinute++;            // เพิ่มนาที
-    if (lastMinute >= 60) {  // เช็คครบ 60 นาที
-      lastMinute = 0;
-      lastHour++;            // เพิ่มชั่วโมง
-      if (lastHour >= 24) lastHour = 0;  // ชั่วโมงวน
-    }
-    lastTick = millis();     // รีเซ็ตตัวจับเวลา
-  }
-
-  // --- แสดงเวลาแบบนิ่ง ๆ HHMM ---
-  showTime(lastHour, lastMinute);
-
-  delay(1000);  // อัปเดตหน้าจอทุก 1 วินาที (ไม่กระพริบ)
-}
+void loop()
+{ // ทำงานวนซ้ำตลอดเวลาที่บอร์ดยังทำงานอยู่
+static int n = 0; // ตัวแปรนับค่า (เก็บค่าไว้แม้ออกจากฟังก์ชัน)
+lcd.setCursor(14, 1); // ย้ายเคอร์เซอร์ไปตำแหน่งคอลัมน์ที่ 14 แถวที่ 1
+lcd.print((n / 10) % 10); // แสดงหลักสิบของตัวเลข n
+lcd.print(n % 10); // แสดงหลักหน่วยของตัวเลข n
+n = (n + 1) % 100; // เพิ่มค่า n ทีละ 1 และวนกลับเมื่อครบ 100 (0–99)
+delay(250); // หน่วงเวลา 250 ms ก่อนอัปเดตค่าครั้งถัดไป
+} // จบฟังก์ชัน loop()

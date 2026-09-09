@@ -1,109 +1,53 @@
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include "LedControl.h"
-
-// --- MAX7219 ---
-#define DIN_PIN 23      // ขา Data In
-#define CLK_PIN 18      // ขา Clock
-#define LOAD_PIN 5      // ขา Load/CS
-LedControl lc = LedControl(DIN_PIN, CLK_PIN, LOAD_PIN, 1);  // กำหนด MAX7219 จำนวน 1 โมดูล
-
-// --- WiFi config ---
-const char* ssid = "xxxxxx";       // ชื่อ WiFi ที่จะเชื่อมต่อ
-const char* password = "xxxxxx";     // รหัสผ่าน WiFi
-
-// --- NTP ---
-WiFiUDP ntpUDP;    // ใช้ UDP สำหรับดึงเวลา NTP
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 7*3600, 60000);  
-// pool.ntp.org = server เวลา
-// 7*3600 = GMT+7
-// 60000 = อัปเดตทุก 60 วินาที
-
-// --- เวลา fallback ---
-unsigned long lastUpdate = 0; // เวลาที่ NTP ถูกอัปเดตล่าสุด (ms)
-int lastHour = 16;            // ค่าเริ่มต้นชั่วโมง (ใช้ถ้า NTP ไม่มา)
-int lastMinute = 55;          // ค่าเริ่มต้นนาที (ใช้ถ้า NTP ไม่มา)
-
-
-// ฟังก์ชันแสดงเวลา HHMM บน MAX7219
-void showTime(int hour, int minute) {
-
-  // แยกแต่ละหลัก เช่น 16:55 → [1][6][5][5]
-  int h1 = hour / 10;      // หลักสิบชั่วโมง
-  int h2 = hour % 10;      // หลักหน่วยชั่วโมง
-  int m1 = minute / 10;    // หลักสิบนาที
-  int m2 = minute % 10;    // หลักหน่วยนาที
-
-  // แสดงตัวเลขลง MAX7219 (decimal=false = ไม่เปิดจุด)
-  lc.setDigit(0, 0, h1, false);
-  lc.setDigit(0, 1, h2, false);
-  lc.setDigit(0, 2, m1, false);
-  lc.setDigit(0, 3, m2, false);
-  // lc.setChar(0, 4, 'o',  false); // ex 25'7
-  lc.setChar(0, 4, 2,  false); //ex 15:14
+/* ST-LAB (ESP32) - Example Code
+ LAB02 : Digital Input (Switch)
+-------------------------------------------------
+ตัวอย่างโปรแกรมอ่านค่าสวิตช์ดิจิทัล (Active LOW)
+และควบคุม LED พร้อมแสดงผลผ่าน Serial Monitor
+*/
+// -------------- กำหนดหมายเลขขา GPIO -------------------
+#define LED_PIN 2 // กำหนดขา GPIO2 สำหรับควบคุม LED บนบอร์ด
+#define SW1_PIN 16 // กำหนดขา GPIO16 สำหรับสวิตช์ SW1
+#define SW2_PIN 17 // กำหนดขา GPIO17 สำหรับสวิตช์ SW2
+#define SW3_PIN 18 // กำหนดขา GPIO18 สำหรับสวิตช์ SW3
+#define SW4_PIN 19 // กำหนดขา GPIO19 สำหรับสวิตช์ SW4
+/*
+หมายเหตุ:
+- สวิตช์ต่อแบบ Active LOW (กด = LOW, ปล่อย = HIGH)
+- ใช้ INPUT_PULLUP เพื่อเปิดตัวต้านทาน Pull-up ภายใน ESP32
+*/
+// -------------------- ฟังก์ชัน setup --------------------
+void setup()
+{
+Serial.begin(115200); // เริ่มต้นการสื่อสาร Serial ที่ความเร็ว 115200 bps
+pinMode(LED_PIN, OUTPUT); // กำหนดขา LED เป็นขาเอาต์พุต
+pinMode(SW1_PIN, INPUT_PULLUP); // กำหนดขา SW1 เป็นอินพุต พร้อม Pull-up ภายใน
+pinMode(SW2_PIN, INPUT_PULLUP); // กำหนดขา SW2 เป็นอินพุต พร้อม Pull-up ภายใน
+pinMode(SW3_PIN, INPUT_PULLUP); // กำหนดขา SW3 เป็นอินพุต พร้อม Pull-up ภายใน
+pinMode(SW4_PIN, INPUT_PULLUP); // กำหนดขา SW4 เป็นอินพุต พร้อม Pull-up ภายใน
+Serial.println("LAB02: Digital Input (Switch) Started");
+// แสดงข้อความแจ้งว่าโปรแกรมเริ่มทำงานแล้ว
 }
 
-
-void setup() {
-  Serial.begin(115200);
-
-  // --- ตั้งค่า MAX7219 ---
-  lc.shutdown(0, false);   // เปิดการทำงาน
-  lc.setIntensity(0, 8);   // ความสว่าง 0–15
-  lc.clearDisplay(0);      // ล้างหน้าจอ
-
-  // --- เชื่อมต่อ WiFi ---
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected");
-
-  // --- เริ่มระบบ NTP ---
-  timeClient.begin();
-
-  // ดึงเวลาครั้งแรก หากสำเร็จ
-  if (timeClient.update()) {
-    lastHour = timeClient.getHours();       // เก็บชั่วโมง
-    lastMinute = timeClient.getMinutes();   // เก็บนาที
-    lastUpdate = millis();                  // บันทึกเวลาปัจจุบัน (ms)
-    Serial.println("Time obtained from NTP");
-  } else {
-    Serial.println("Failed to obtain time, fallback to default");
-  }
-}
-
-
-void loop() {
-
-  // --- อัปเดตเวลาจาก NTP ทุก 60 วินาที ---
-  if (millis() - lastUpdate >= 60000) {
-    if (timeClient.update()) {
-      lastHour = timeClient.getHours();      // ได้เวลาชั่วโมงจริง
-      lastMinute = timeClient.getMinutes();  // ได้นาทีจริง
-      Serial.println("NTP time updated");
-    }
-    lastUpdate = millis();   // รีเซ็ตการจับเวลา
-  }
-
-
-  // --- Fallback: ถ้า NTP ไม่มาเพิ่มเวลาเองทุก 1 นาที ---
-  static unsigned long lastTick = 0;
-  if (millis() - lastTick >= 60000) {
-    lastMinute++;            // เพิ่มนาที
-    if (lastMinute >= 60) {  // เช็คครบ 60 นาที
-      lastMinute = 0;
-      lastHour++;            // เพิ่มชั่วโมง
-      if (lastHour >= 24) lastHour = 0;  // ชั่วโมงวน
-    }
-    lastTick = millis();     // รีเซ็ตตัวจับเวลา
-  }
-
-  // --- แสดงเวลาแบบนิ่ง ๆ HHMM ---
-  showTime(lastHour, lastMinute);
-
-  delay(1000);  // อัปเดตหน้าจอทุก 1 วินาที (ไม่กระพริบ)
+// -------------------- ฟังก์ชัน loop --------------------
+void loop()
+{
+int sw1 = digitalRead(SW1_PIN); // อ่านสถานะสวิตช์ SW1 (HIGH / LOW)
+int sw2 = digitalRead(SW2_PIN); // อ่านสถานะสวิตช์ SW2 (HIGH / LOW)
+int sw3 = digitalRead(SW3_PIN); // อ่านสถานะสวิตช์ SW3 (HIGH / LOW)
+int sw4 = digitalRead(SW4_PIN); // อ่านสถานะสวิตช์ SW4 (HIGH / LOW)
+// ถ้า SW1 ถูกกด (LOW) ให้ LED ติด ถ้าไม่กดให้ LED ดับ
+digitalWrite(LED_PIN, (sw1 == LOW) ? HIGH : LOW);
+// แสดงสถานะของ SW1 ผ่าน Serial Monitor
+Serial.print("SW1=");
+Serial.print(sw1 == LOW ? "PRESSED" : "RELEASED");
+// แสดงสถานะของ SW2 ผ่าน Serial Monitor
+Serial.print(" | SW2=");
+Serial.print(sw2 == LOW ? "PRESSED" : "RELEASED");
+// แสดงสถานะของ SW3 ผ่าน Serial Monitor
+Serial.print(" | SW3=");
+Serial.print(sw3 == LOW ? "PRESSED" : "RELEASED");
+// แสดงสถานะของ SW4 ผ่าน Serial Monitor และขึ้นบรรทัดใหม่
+Serial.print(" | SW4=");
+Serial.println(sw4 == LOW ? "PRESSED" : "RELEASED");
+delay(150); // หน่วงเวลา 150 ms เพื่อลดการอ่านถี่เกินไป
 }

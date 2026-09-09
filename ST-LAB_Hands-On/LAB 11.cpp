@@ -1,109 +1,69 @@
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
-#include "LedControl.h"
+/* ST-LAB (ESP32) - Example Code
+ LAB11.1 : Stepper Motor
+*/
+#include <Arduino.h> // ไลบรารีหลักของ Arduino (จำเป็นสำหรับ ESP32/PlatformIO บางกรณี)
 
-// --- MAX7219 ---
-#define DIN_PIN 23      // ขา Data In
-#define CLK_PIN 18      // ขา Clock
-#define LOAD_PIN 5      // ขา Load/CS
-LedControl lc = LedControl(DIN_PIN, CLK_PIN, LOAD_PIN, 1);  // กำหนด MAX7219 จำนวน 1 โมดูล
+const int IN1 = 16; // ขา GPIO16 ต่อกับขดลวดชุดที่ 1 ของสเต็ปเปอร์
+const int IN2 = 17; // ขา GPIO17 ต่อกับขดลวดชุดที่ 2
+const int IN3 = 18; // ขา GPIO18 ต่อกับขดลวดชุดที่ 3
+const int IN4 = 19; // ขา GPIO19 ต่อกับขดลวดชุดที่ 4
 
-// --- WiFi config ---
-const char* ssid = "xxxxxx";       // ชื่อ WiFi ที่จะเชื่อมต่อ
-const char* password = "xxxxxx";     // รหัสผ่าน WiFi
+// ตารางลำดับการกระตุ้นขดลวดแบบ Half-step (8 จังหวะต่อรอบลำดับ)
+const uint8_t seq[8][4] = {
+{1, 0, 0, 0}, // Step 0: เปิดเฉพาะขดลวด IN1
+{1, 1, 0, 0}, // Step 1: เปิด IN1 และ IN2 พร้อมกัน
+{0, 1, 0, 0}, // Step 2: เปิดเฉพาะขดลวด IN2
+{0, 1, 1, 0}, // Step 3: เปิด IN2 และ IN3 พร้อมกัน
+{0, 0, 1, 0}, // Step 4: เปิดเฉพาะขดลวด IN3
+{0, 0, 1, 1}, // Step 5: เปิด IN3 และ IN4 พร้อมกัน
+{0, 0, 0, 1}, // Step 6: เปิดเฉพาะขดลวด IN4
+{1, 0, 0, 1} // Step 7: เปิด IN4 และ IN1 พร้อมกัน
+};
 
-// --- NTP ---
-WiFiUDP ntpUDP;    // ใช้ UDP สำหรับดึงเวลา NTP
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 7*3600, 60000);  
-// pool.ntp.org = server เวลา
-// 7*3600 = GMT+7
-// 60000 = อัปเดตทุก 60 วินาที
-
-// --- เวลา fallback ---
-unsigned long lastUpdate = 0; // เวลาที่ NTP ถูกอัปเดตล่าสุด (ms)
-int lastHour = 16;            // ค่าเริ่มต้นชั่วโมง (ใช้ถ้า NTP ไม่มา)
-int lastMinute = 55;          // ค่าเริ่มต้นนาที (ใช้ถ้า NTP ไม่มา)
-
-
-// ฟังก์ชันแสดงเวลา HHMM บน MAX7219
-void showTime(int hour, int minute) {
-
-  // แยกแต่ละหลัก เช่น 16:55 → [1][6][5][5]
-  int h1 = hour / 10;      // หลักสิบชั่วโมง
-  int h2 = hour % 10;      // หลักหน่วยชั่วโมง
-  int m1 = minute / 10;    // หลักสิบนาที
-  int m2 = minute % 10;    // หลักหน่วยนาที
-
-  // แสดงตัวเลขลง MAX7219 (decimal=false = ไม่เปิดจุด)
-  lc.setDigit(0, 0, h1, false);
-  lc.setDigit(0, 1, h2, false);
-  lc.setDigit(0, 2, m1, false);
-  lc.setDigit(0, 3, m2, false);
-  // lc.setChar(0, 4, 'o',  false); // ex 25'7
-  lc.setChar(0, 4, 2,  false); //ex 15:14
+// ฟังก์ชันสั่งเปิด/ปิดขดลวดทั้ง 4 เส้น
+void setCoils(uint8_t a, uint8_t b, uint8_t c, uint8_t d)
+{
+digitalWrite(IN1, a); // ส่งสถานะ HIGH/LOW ไปยัง IN1
+digitalWrite(IN2, b); // ส่งสถานะ HIGH/LOW ไปยัง IN2
+digitalWrite(IN3, c); // ส่งสถานะ HIGH/LOW ไปยัง IN3
+digitalWrite(IN4, d); // ส่งสถานะ HIGH/LOW ไปยัง IN4
 }
 
-
-void setup() {
-  Serial.begin(115200);
-
-  // --- ตั้งค่า MAX7219 ---
-  lc.shutdown(0, false);   // เปิดการทำงาน
-  lc.setIntensity(0, 8);   // ความสว่าง 0–15
-  lc.clearDisplay(0);      // ล้างหน้าจอ
-
-  // --- เชื่อมต่อ WiFi ---
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected");
-
-  // --- เริ่มระบบ NTP ---
-  timeClient.begin();
-
-  // ดึงเวลาครั้งแรก หากสำเร็จ
-  if (timeClient.update()) {
-    lastHour = timeClient.getHours();       // เก็บชั่วโมง
-    lastMinute = timeClient.getMinutes();   // เก็บนาที
-    lastUpdate = millis();                  // บันทึกเวลาปัจจุบัน (ms)
-    Serial.println("Time obtained from NTP");
-  } else {
-    Serial.println("Failed to obtain time, fallback to default");
-  }
+// สั่งหมุนมอเตอร์ 1 สเต็ป ตามลำดับที่กำหนด
+void stepOnce(int idx)
+{
+idx = (idx + 8) % 8;
+// ทำให้ค่า index อยู่ในช่วง 0–7 เสมอ (รองรับค่าติดลบ)
+setCoils(
+seq[idx][0], // สถานะขดลวด IN1
+seq[idx][1], // สถานะขดลวด IN2
+seq[idx][2], // สถานะขดลวด IN3
+seq[idx][3] // สถานะขดลวด IN4
+);
+}
+void setup()
+{
+pinMode(IN1, OUTPUT); // ตั้งค่า IN1 เป็นขาเอาต์พุต
+pinMode(IN2, OUTPUT); // ตั้งค่า IN2 เป็นขาเอาต์พุต
+pinMode(IN3, OUTPUT); // ตั้งค่า IN3 เป็นขาเอาต์พุต
+pinMode(IN4, OUTPUT); // ตั้งค่า IN4 เป็นขาเอาต์พุต
 }
 
-
-void loop() {
-
-  // --- อัปเดตเวลาจาก NTP ทุก 60 วินาที ---
-  if (millis() - lastUpdate >= 60000) {
-    if (timeClient.update()) {
-      lastHour = timeClient.getHours();      // ได้เวลาชั่วโมงจริง
-      lastMinute = timeClient.getMinutes();  // ได้นาทีจริง
-      Serial.println("NTP time updated");
-    }
-    lastUpdate = millis();   // รีเซ็ตการจับเวลา
-  }
-
-
-  // --- Fallback: ถ้า NTP ไม่มาเพิ่มเวลาเองทุก 1 นาที ---
-  static unsigned long lastTick = 0;
-  if (millis() - lastTick >= 60000) {
-    lastMinute++;            // เพิ่มนาที
-    if (lastMinute >= 60) {  // เช็คครบ 60 นาที
-      lastMinute = 0;
-      lastHour++;            // เพิ่มชั่วโมง
-      if (lastHour >= 24) lastHour = 0;  // ชั่วโมงวน
-    }
-    lastTick = millis();     // รีเซ็ตตัวจับเวลา
-  }
-
-  // --- แสดงเวลาแบบนิ่ง ๆ HHMM ---
-  showTime(lastHour, lastMinute);
-
-  delay(1000);  // อัปเดตหน้าจอทุก 1 วินาที (ไม่กระพริบ)
+void loop()
+{
+static int i = 0; // เก็บตำแหน่งสเต็ปปัจจุบัน (จำค่าไว้ระหว่างรอบ loop)
+// ===== หมุนตามเข็มนาฬิกา =====
+for (int k = 0; k < 400; k++)
+{
+stepOnce(i++); // เพิ่มลำดับ index เพื่อหมุนไปข้างหน้า
+delay(3); // หน่วงเวลา 3 ms ควบคุมความเร็วการหมุน
+}
+delay(500); // หยุดพัก 0.5 วินาที ก่อนเปลี่ยนทิศทาง
+// ===== หมุนทวนเข็มนาฬิกา =====
+for (int k = 0; k < 400; k++)
+{
+stepOnce(i--); // ลดลำดับ index เพื่อหมุนย้อนกลับ
+delay(3); // หน่วงเวลา 3 ms ควบคุมความเร็วการหมุน
+}
+delay(500); // หยุดพักก่อนเริ่มรอบใหม่
 }
